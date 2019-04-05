@@ -3,9 +3,7 @@ module UProbes
 using LLVM
 using LLVM.Interop
 
-function __init__()
-    @assert LLVM.InitializeNativeTarget() == false
-end
+export @probe
 
 # TODO:
 # - Semaphore support
