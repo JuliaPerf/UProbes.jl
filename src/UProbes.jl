@@ -1,12 +1,9 @@
 module UProbes
 
 using LLVM
-using LLVM.Interop
+import Libdl
 
-export @probe
-
-# TODO:
-# - Semaphore support
+export @probe, @query
 
 # Links:
 # * https://lwn.net/Articles/753601/
@@ -26,11 +23,44 @@ export @probe
 
 macro probe(provider, name, args...)
     quote
-        $emit_probeasm(Val($provider), Val($name), $(map(esc, args)...))
+        $__probe(Val($provider), Val($name), $(map(esc, args)...))
     end
 end
 
-@generated function emit_probeasm(::Val{provider}, ::Val{name}, args...) where {provider, name}
+macro query(provider, name, types...)
+    quote
+        $__query(Val($provider), Val($name), Tuple{$(map(esc, args)...)})
+    end
+end
+
+@generated function __probe(::Val{provider}, ::Val{name}, args...) where {provider, name}
+    dlptr = cache_dl(provider, name, args)
+    dlsym = Libdl.dlsym(dlptr, Symbol(join(("__uprobe", provider, name), "_")))
+    quote
+        ccall($dlsym, Nothing, ($(args...),), $((:(args[$i]) for i in 1:length(args))...))
+    end
+end
+
+@generated function __probe(::Val{provider}, ::Val{name}, ::Tuple{args}) where {provider, name, args}
+    dlptr = cache_dl(provider, name, args)
+    dlsym = Libdl.dlsym(dlptr, Symbol(join((provider, name, "semaphore"), "_")))
+    quote
+        unsafe_load(convert(Ptr{UInt16}, $dlsym)) % Bool
+    end
+end
+
+const __probes = Dict{Tuple{Symbol, Symbol, Tuple}, Ptr{Nothing}}()
+function cache_dl(provider, name, args)
+    key = (provider, name, args)
+    if !haskey(__probes, key)
+        dlptr = emit_probe(provider, name, args)
+        __probes[key] = dlptr
+        return dlptr
+    end
+    return __probes[key]
+end
+
+function emit_probe(provider::Symbol, name::Symbol, args::Tuple; file = tempname())
     @assert length(args) <= 12
 
     argstr = join((string("-", sizeof(args[i]), "@\$\$", i-1) for i in 1:length(args)), ' ')
@@ -57,7 +87,7 @@ end
 992:    .balign 4
 993:    $addr 990b
         $addr _.stapsdt.base
-        $addr 0
+        $addr $(provider)_$(name)_semaphore
         .asciz "$provider"
         .asciz "$name"
         .asciz "$argstr"
@@ -72,12 +102,44 @@ _.stapsdt.base: .space 1
         .popsection
 .endif
 """
+
+    ctx = LLVM.Interop.JuliaContext()
+    mod = LLVM.Module("uprobe_$(provider)_$(name)", ctx)
+
+    # Create semaphore variable
+    semaphore = LLVM.GlobalVariable(mod, LLVM.Int16Type(ctx), "$(provider)_$(name)_semaphore")
+    section!(semaphore, ".probes")
+    linkage!(semaphore, LLVM.API.LLVMDLLExportLinkage)
+
+    # create function that will do a call to nop assembly
+    rettyp = convert(LLVMType, Nothing)
+    argtyp = LLVMType[convert.(LLVMType, args)...]
+
+    ft = LLVM.FunctionType(rettyp, argtyp)
+    f = LLVM.Function(mod, string("__uprobe_", provider, "_", name), ft)
+    linkage!(f, LLVM.API.LLVMDLLExportLinkage)
+
+    inline_asm = InlineAsm(ft, asm, "", true)
     
-    expr = quote
-        @asmcall($asm, "", true, Nothing, Tuple{$(args...)}, args...)
-        return nothing
+    # generate IR
+    Builder(ctx) do builder
+        entry = BasicBlock(f, "entry", ctx)
+        position!(builder, entry)
+
+        val = call!(builder, inline_asm, collect(parameters(f)))
+        ret!(builder)
     end
-    expr
+
+    triple = LLVM.triple()
+    target = LLVM.Target(triple)
+    objfile = tempname()
+    TargetMachine(target, triple) do tm
+        LLVM.emit(tm, mod, LLVM.API.LLVMObjectFile, objfile)
+    end
+
+    run(`ld -shared $objfile -o $file`)
+    return Libdl.dlopen(file, Libdl.RTLD_LOCAL)
 end
 
-end # module
+end #module
+
