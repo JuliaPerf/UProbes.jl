@@ -132,6 +132,12 @@ _.stapsdt.base: .space 1
     linkage!(semaphore, LLVM.API.LLVMExternalLinkage)
     initializer!(semaphore, ConstantInt(int16_t, 0))
 
+    # GDB is rather unhappy if there is no `.data` section
+    gdb_unhappy = LLVM.GlobalVariable(mod, int16_t, "are_you_happy_now")
+    section!(gdb_unhappy, ".data")
+    linkage!(gdb_unhappy, LLVM.API.LLVMExternalLinkage)
+    initializer!(gdb_unhappy, ConstantInt(int16_t, 0))
+
     # create function that will do a call to nop assembly
     rettyp = convert(LLVMType, Nothing)
     argtyp = LLVMType[convert.(LLVMType, args)...]
@@ -154,7 +160,7 @@ _.stapsdt.base: .space 1
     triple = LLVM.triple()
     target = LLVM.Target(triple)
     objfile = tempname()
-    TargetMachine(target, triple) do tm
+    TargetMachine(target, triple, "", "", LLVM.API.LLVMCodeGenLevelDefault, LLVM.API.LLVMRelocPIC) do tm
         LLVM.emit(tm, mod, LLVM.API.LLVMObjectFile, objfile)
     end
 
