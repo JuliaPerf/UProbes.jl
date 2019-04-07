@@ -97,6 +97,7 @@ function emit_probe(provider::Symbol, name::Symbol, args::Tuple; file = tempname
     constr = join((constraint(args[i])     for i in 1:length(args)), ',')
     addr = string(".", sizeof(Int), "byte")
 
+    line = @__LINE__
     asm = """
 990:    nop
         .pushsection .note.stapsdt,"?","note"
@@ -125,6 +126,11 @@ _.stapsdt.base: .space 1
     ctx = LLVM.Interop.JuliaContext()
     mod = LLVM.Module("uprobe_$(provider)_$(name)", ctx)
 
+    dibuilder = DIBuilder(mod)
+    di_file = LLVM.file!(dibuilder, @__FILE__, @__DIR__)
+    cu = LLVM.compileunit!(dibuilder, LLVM.API.LLVMDWARFSourceLanguageJulia, di_file, "UProbes.jl", LLVM.False,
+                           "", UInt32(0), "", LLVM.API.LLVMDWARFEmissionFull, UInt32(4), LLVM.False, LLVM.False)
+
     # Create semaphore variable
     int16_t = LLVM.Int16Type(ctx)
     semaphore = LLVM.GlobalVariable(mod, int16_t, "$(provider)_$(name)_semaphore")
@@ -147,9 +153,14 @@ _.stapsdt.base: .space 1
         entry = BasicBlock(f, "entry", ctx)
         position!(builder, entry)
 
+        md = LLVM.location!(ctx, UInt32(line), UInt32(0), cu) # could also be file
+        debuglocation!(builder, LLVM.MetadataAsValue(LLVM.API.LLVMMetadataAsValue(LLVM.ref(ctx), md)))
         val = call!(builder, inline_asm, collect(parameters(f)))
         ret!(builder)
     end
+
+    finalize(dibuilder)
+    dispose(dibuilder)
 
     triple = LLVM.triple()
     target = LLVM.Target(triple)
