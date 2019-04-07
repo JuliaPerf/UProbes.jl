@@ -54,12 +54,17 @@ end # iswindows
     end
 end
 
+# If a semaphore is associated with a probe, it will be of type unsigned short.
+# A semaphore may gate invocations of a probe; it must be set to a non-zero
+# value to guarantee that the probe will be hit. Semaphores are treated
+# as a counter; your tool should increment the semaphore to enable it,
+# and decrement the semaphore when finished.
 @generated function __query(::Val{provider}, ::Val{name}, ::Type{args}) where {provider, name, args}
     args = (args.parameters..., )
     dlptr = cache_dl(provider, name, args)
     dlsym = Libdl.dlsym(dlptr, Symbol(join((provider, name, "semaphore"), "_")))
     quote
-        unsafe_load(convert(Ptr{UInt16}, $dlsym)) % Bool
+        unsafe_load(convert(Ptr{UInt16}, $dlsym)) !== UInt16(0)
     end
 end
 
