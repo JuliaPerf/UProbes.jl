@@ -21,6 +21,17 @@ export @probe, @query
 # * https://sourceware.org/systemtap/wiki/UserSpaceProbeImplementation
 # * https://sourceware.org/gdb/onlinedocs/gdb/Static-Probe-Points.html
 
+
+if Sys.iswindows()
+macro probe(args...)
+    :()
+end
+macro quert(args...)
+    :(false)
+end
+
+else
+
 macro probe(provider, name, args...)
     quote
         $__probe(Val($provider), Val($name), $(map(esc, args)...))
@@ -29,9 +40,11 @@ end
 
 macro query(provider, name, types...)
     quote
-        $__query(Val($provider), Val($name), Tuple{$(map(esc, args)...)})
+        $__query(Val($provider), Val($name), Tuple{$(map(esc, types)...)})
     end
 end
+
+end # iswindows
 
 @generated function __probe(::Val{provider}, ::Val{name}, args...) where {provider, name}
     dlptr = cache_dl(provider, name, args)
@@ -41,7 +54,8 @@ end
     end
 end
 
-@generated function __probe(::Val{provider}, ::Val{name}, ::Tuple{args}) where {provider, name, args}
+@generated function __query(::Val{provider}, ::Val{name}, ::Type{args}) where {provider, name, args}
+    args = (args.parameters..., )
     dlptr = cache_dl(provider, name, args)
     dlsym = Libdl.dlsym(dlptr, Symbol(join((provider, name, "semaphore"), "_")))
     quote
@@ -60,23 +74,23 @@ function cache_dl(provider, name, args)
     return __probes[key]
 end
 
+argstring(::Type{T}, i) where T = error("UProbes.jl doesn't know how to handle $T") 
+argstring(::Type{T}, i) where T <: Signed   = string("-", sizeof(T), raw"@$", i) 
+argstring(::Type{T}, i) where T <: Unsigned = string(     sizeof(T), raw"@$", i)
+
+if Sys.ARCH === :powerpc64le || Sys.ARCH === :ppc64le
+    constraint(::Type{T}) where T <: Integer = "nZr"
+else
+    constraint(::Type{T}) where T <: Integer = "nor"
+end
+
 function emit_probe(provider::Symbol, name::Symbol, args::Tuple; file = tempname())
     @assert length(args) <= 12
 
-    argstr = join((string("-", sizeof(args[i]), "@\$\$", i-1) for i in 1:length(args)), ' ')
-    addr = string(".", sizeof(Int), "byte")
 
-    # FIXME set semaphore address
-    # 993:
-    # ...
-    # $addr 0 // semaphore address
-    # maybe just
-    #    $addr $(provider)_$(name)_semaphore
-    # Need to create a GlobalVariable of that name in the module beforehand
-    # `__extension__ extern unsigned short $(provider)_$(name)_semaphore __attribute__ ((unused)) __attribute__ ((section (".probes")))`
-    # semaphore = GlobalVariable(mod, LLVM.Int16Type(ctx), "template_semaphore")
-    # section!(semaphore, ".probes")
-    # linkage!(semaphore, ...)
+    argstr = join((argstring(args[i], i-1) for i in 1:length(args)), ' ')
+    constr = join((constraint(args[i])     for i in 1:length(args)), ',')
+    addr = string(".", sizeof(Int), "byte")
 
     asm = """
 990:    nop
@@ -107,9 +121,11 @@ _.stapsdt.base: .space 1
     mod = LLVM.Module("uprobe_$(provider)_$(name)", ctx)
 
     # Create semaphore variable
-    semaphore = LLVM.GlobalVariable(mod, LLVM.Int16Type(ctx), "$(provider)_$(name)_semaphore")
+    int16_t = LLVM.Int16Type(ctx)
+    semaphore = LLVM.GlobalVariable(mod, int16_t, "$(provider)_$(name)_semaphore")
     section!(semaphore, ".probes")
-    linkage!(semaphore, LLVM.API.LLVMDLLExportLinkage)
+    linkage!(semaphore, LLVM.API.LLVMExternalLinkage)
+    initializer!(semaphore, ConstantInt(int16_t, 0))
 
     # create function that will do a call to nop assembly
     rettyp = convert(LLVMType, Nothing)
@@ -117,9 +133,9 @@ _.stapsdt.base: .space 1
 
     ft = LLVM.FunctionType(rettyp, argtyp)
     f = LLVM.Function(mod, string("__uprobe_", provider, "_", name), ft)
-    linkage!(f, LLVM.API.LLVMDLLExportLinkage)
+    linkage!(f, LLVM.API.LLVMExternalLinkage)
 
-    inline_asm = InlineAsm(ft, asm, "", true)
+    inline_asm = InlineAsm(ft, asm, constr, true)
     
     # generate IR
     Builder(ctx) do builder
