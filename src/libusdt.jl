@@ -59,13 +59,29 @@ function create_provider(name, module_name)
     # usdt_provider_t *usdt_create_provider(const char *name, const char *module);
     # ccall((:usdt_create_provider, libusdt), Ptr{Provider}, (Cstring, Cstring), name, module_name)
 end
-# int usdt_provider_add_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
-# int usdt_provider_remove_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
-# int usdt_provider_enable(usdt_provider_t *provider);
-# int usdt_provider_disable(usdt_provider_t *provider);
-# void usdt_provider_free(usdt_provider_t *provider);
-# 
-# void usdt_error(usdt_provider_t *provider, usdt_error_t error, ...);
-# char *usdt_errstr(usdt_provider_t *provider);
+function provider_add_probe(provider, probedef)
+    # int usdt_provider_add_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
+end
+function provider_remove_probe(provider, probedef)
+    # int usdt_provider_remove_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
+end
+function provider_enable(provider)
+    # int usdt_provider_enable(usdt_provider_t *provider);
+end
+function provider_disable(provider)
+    # int usdt_provider_disable(usdt_provider_t *provider);
+end
+function provider_free(provider)
+    # void usdt_provider_free(usdt_provider_t *provider);
+end
+
+#function error(provider, error, args...)
+#    # void usdt_error(usdt_provider_t *provider, usdt_error_t error, ...);
+#    ccall((:usdt_error, libusdt), Nothing, (Ptr{Provider}, Cint, typeof(args)...), provider, error, args...);
+#end
+function errstr(provider)
+    # char *usdt_errstr(usdt_provider_t *provider);
+    #ccall((:usdt_errstr, libusdt), Cstring, (Ptr{Provider},), provider)
+end
 
 end
