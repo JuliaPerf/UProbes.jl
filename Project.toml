@@ -4,6 +4,7 @@ authors = ["Valentin Churavy <v.churavy@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
