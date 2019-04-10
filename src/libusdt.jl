@@ -84,7 +84,9 @@ function provider_free(provider)
 end
 
 # TODO: varargs...?
-#function error(provider, error, args...)
+function error(provider, error, args...)
+  ccall((:usdt_error, libusdt), Nothing, (Ptr{Provider}, Cint, Cstring...), provider, error, args...)
+end
 #    # void usdt_error(usdt_provider_t *provider, usdt_error_t error, ...);
 #    ccall((:usdt_error, libusdt), Nothing, (Ptr{Provider}, Cint, typeof(args)...), provider, error, args...);
 #end
