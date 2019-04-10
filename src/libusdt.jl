@@ -12,8 +12,8 @@ const ERROR_DUP_PROBE = Cint(6)
 const ERROR_REMOVE_PROBE = Cint(7)
 
 struct Probe
-    isenabled::Ptr{Void} # int (*func)(void)
-    probe::Ptr{Void}
+    isenabled::Ptr{Nothing} # int (*func)(void)
+    probe::Ptr{Nothing}
 end
 
 function is_enabled(probe)
@@ -68,3 +68,4 @@ end
 # void usdt_error(usdt_provider_t *provider, usdt_error_t error, ...);
 # char *usdt_errstr(usdt_provider_t *provider);
 
+end
