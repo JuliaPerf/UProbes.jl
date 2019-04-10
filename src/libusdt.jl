@@ -1,5 +1,7 @@
 module LibUSDT
 
+include(joinpath(@__DIR__, "..", "deps", "deps.jl"))
+
 const ARG_MAX = 32
 
 const ERROR_MALLOC = Cint(0)
@@ -12,8 +14,8 @@ const ERROR_DUP_PROBE = Cint(6)
 const ERROR_REMOVE_PROBE = Cint(7)
 
 struct Probe
-    isenabled::Ptr{Nothing} # int (*func)(void)
-    probe::Ptr{Nothing}
+    isenabled::Ptr{Cvoid} # int (*func)(void)
+    probe::Ptr{Probe}
 end
 
 function is_enabled(probe)
@@ -43,8 +45,6 @@ function release(probedef)
     ccall((:usdt_probe_release, libusdt), Cvoid, (Ptr{ProbeDef},), probedef)
 end
 
-struct _DofFile end
-
 struct Provider
     name::Cstring
     module_name::Cstring
@@ -52,12 +52,12 @@ struct Provider
     probedefs::Ptr{ProbeDef}
     error::Cstring
     enabled::Cint
-    file::Ptr{_DofFile}
+    file::Ptr{Cvoid}
 end
 
 function create_provider(name, module_name)
     # usdt_provider_t *usdt_create_provider(const char *name, const char *module);
-    #ccall((:usdt_create_provider, libusdt), Ptr{Provider}, (Cstring, Cstring), name, module_name)
+    # ccall((:usdt_create_provider, libusdt), Ptr{Provider}, (Cstring, Cstring), name, module_name)
 end
 # int usdt_provider_add_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
 # int usdt_provider_remove_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
