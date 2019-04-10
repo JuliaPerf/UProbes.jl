@@ -12,8 +12,8 @@ const ERROR_DUP_PROBE = Cint(6)
 const ERROR_REMOVE_PROBE = Cint(7)
 
 struct Probe
-    isenabled::Ptr{Void} # int (*func)(void)
-    probe::Ptr{Void}
+    isenabled::Ptr{Nothing} # int (*func)(void)
+    probe::Ptr{Nothing}
 end
 
 function is_enabled(probe)
@@ -34,7 +34,7 @@ struct ProbeDef
     refcnt::Cint
 end
 
-function create_prone(func, name, types...)
+function create_probe(func, name, types...)
     # usdt_probedef_t *usdt_create_probe(const char *func, const char *name,
     #                                    size_t argc, const char **types);
 end
@@ -43,16 +43,22 @@ function release(probedef)
     ccall((:usdt_probe_release, libusdt), Cvoid, (Ptr{ProbeDef},), probedef)
 end
 
-# typedef struct usdt_provider {
-#         const char *name;
-#         const char *module;
-#         usdt_probedef_t *probedefs;
-#         char *error;
-#         int enabled;
-#         void *file;
-# } usdt_provider_t;
-# 
-# usdt_provider_t *usdt_create_provider(const char *name, const char *module);
+struct _DofFile end
+
+struct Provider
+    name::Cstring
+    module_name::Cstring
+    # ProbeDefs provide a linked-list like interface via pd.next
+    probedefs::Ptr{ProbeDef}
+    error::Cstring
+    enabled::Cint
+    file::Ptr{_DofFile}
+end
+
+function create_provider(name, module_name)
+    # usdt_provider_t *usdt_create_provider(const char *name, const char *module);
+    #ccall((:usdt_create_provider, libusdt), Ptr{Provider}, (Cstring, Cstring), name, module_name)
+end
 # int usdt_provider_add_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
 # int usdt_provider_remove_probe(usdt_provider_t *provider, usdt_probedef_t *probedef);
 # int usdt_provider_enable(usdt_provider_t *provider);
@@ -62,3 +68,4 @@ end
 # void usdt_error(usdt_provider_t *provider, usdt_error_t error, ...);
 # char *usdt_errstr(usdt_provider_t *provider);
 
+end

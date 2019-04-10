@@ -1,5 +1,7 @@
 module UProbes
 
+include("libusdt.jl")
+
 using LLVM
 import Libdl
 
