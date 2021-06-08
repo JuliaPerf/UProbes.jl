@@ -122,7 +122,7 @@ _.stapsdt.base: .space 1
 .endif
 """
 
-    ctx = LLVM.Interop.JuliaContext()
+    LLVM.Interop.JuliaContext() do ctx
     mod = LLVM.Module("uprobe_$(provider)_$(name)", ctx)
 
     # Create semaphore variable
@@ -139,15 +139,15 @@ _.stapsdt.base: .space 1
     initializer!(gdb_unhappy, ConstantInt(int16_t, 0))
 
     # create function that will do a call to nop assembly
-    rettyp = convert(LLVMType, Nothing)
-    argtyp = LLVMType[convert.(LLVMType, args)...]
+    rettyp = convert(LLVMType, Nothing, ctx)
+    argtyp = LLVMType[convert.(Ref(LLVMType), args, Ref(ctx))...]
 
     ft = LLVM.FunctionType(rettyp, argtyp)
     f = LLVM.Function(mod, string("__uprobe_", provider, "_", name), ft)
     linkage!(f, LLVM.API.LLVMExternalLinkage)
 
     inline_asm = InlineAsm(ft, asm, constr, true)
-    
+
     # generate IR
     Builder(ctx) do builder
         entry = BasicBlock(f, "entry", ctx)
@@ -158,13 +158,15 @@ _.stapsdt.base: .space 1
     end
 
     triple = LLVM.triple()
-    target = LLVM.Target(triple)
+    target = LLVM.Target(; triple=triple)
     objfile = tempname()
     TargetMachine(target, triple, "", "", LLVM.API.LLVMCodeGenLevelDefault, LLVM.API.LLVMRelocPIC) do tm
         LLVM.emit(tm, mod, LLVM.API.LLVMObjectFile, objfile)
     end
 
     run(`ld -shared $objfile -o $file`)
+    end # JuliaContext
+
     return Libdl.dlopen(file, Libdl.RTLD_LOCAL)
 end
 
