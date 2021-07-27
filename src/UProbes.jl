@@ -26,7 +26,7 @@ if Sys.iswindows()
 macro probe(args...)
     :()
 end
-macro quert(args...)
+macro query(args...)
     :(false)
 end
 
