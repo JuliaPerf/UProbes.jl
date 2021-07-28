@@ -1,11 +1,15 @@
 name = "UProbes"
 uuid = "fdc92b62-57bd-11e9-1326-e584eb179d13"
 authors = ["Valentin Churavy <v.churavy@gmail.com>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[compat]
+LLVM = "3.7"
+julia = "1.6"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
