@@ -122,8 +122,8 @@ _.stapsdt.base: .space 1
 .endif
 """
 
-    LLVM.Interop.JuliaContext() do ctx
-    mod = LLVM.Module("uprobe_$(provider)_$(name)", ctx)
+    LLVM.Interop.Context() do ctx
+    mod = LLVM.Module("uprobe_$(provider)_$(name)"; ctx)
 
     # Create semaphore variable
     int16_t = LLVM.Int16Type(ctx)
@@ -139,8 +139,8 @@ _.stapsdt.base: .space 1
     initializer!(gdb_unhappy, ConstantInt(int16_t, 0))
 
     # create function that will do a call to nop assembly
-    rettyp = convert(LLVMType, Nothing, ctx)
-    argtyp = LLVMType[convert.(Ref(LLVMType), args, Ref(ctx))...]
+    rettyp = convert(LLVMType, Nothing; ctx)
+    argtyp = LLVMType[convert.(Ref(LLVMType), args; ctx)...]
 
     ft = LLVM.FunctionType(rettyp, argtyp)
     f = LLVM.Function(mod, string("__uprobe_", provider, "_", name), ft)
@@ -150,7 +150,7 @@ _.stapsdt.base: .space 1
 
     # generate IR
     Builder(ctx) do builder
-        entry = BasicBlock(f, "entry", ctx)
+        entry = BasicBlock(f, "entry"; ctx)
         position!(builder, entry)
 
         val = call!(builder, inline_asm, collect(parameters(f)))
@@ -160,7 +160,7 @@ _.stapsdt.base: .space 1
     triple = LLVM.triple()
     target = LLVM.Target(; triple=triple)
     objfile = tempname()
-    TargetMachine(target, triple, "", "", LLVM.API.LLVMCodeGenLevelDefault, LLVM.API.LLVMRelocPIC) do tm
+    TargetMachine(target, triple, "", ""; reloc=LLVM.API.LLVMRelocPIC) do tm
         LLVM.emit(tm, mod, LLVM.API.LLVMObjectFile, objfile)
     end
 
