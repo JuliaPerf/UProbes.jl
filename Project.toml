@@ -1,7 +1,7 @@
 name = "UProbes"
 uuid = "fdc92b62-57bd-11e9-1326-e584eb179d13"
 authors = ["Valentin Churavy <v.churavy@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
