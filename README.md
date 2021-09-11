@@ -28,7 +28,7 @@ end
 ```
 
 ```bash
-sudo bpftrace -p $PID -e "usdt:julia:test { @[comm] = count(); }"
+sudo bpftrace -p $PID -e "usdt::julia:test { @[comm] = count(); }"
 Attaching 1 probe...
 ^C
 
